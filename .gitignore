@@ -1,3 +1,10 @@
 .env.local
 venv/
 .DS_Store
+
+# Cloudflare Worker
+worker/node_modules/
+worker/dist/
+worker/.dev.vars
+worker/.wrangler/
+worker/package-lock.json

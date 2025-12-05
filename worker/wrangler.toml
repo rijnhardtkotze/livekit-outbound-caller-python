@@ -1,0 +1,15 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "livekit-outbound-caller"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Serve static assets from public directory
+[assets]
+directory = "./public"
+
+# Environment variables - set these in Cloudflare dashboard or .dev.vars
+# LIVEKIT_URL = "wss://your-livekit-server.com"
+# LIVEKIT_API_KEY = "your-api-key"
+# LIVEKIT_API_SECRET = "your-api-secret"
+# SIP_OUTBOUND_TRUNK_ID = "your-trunk-id"
