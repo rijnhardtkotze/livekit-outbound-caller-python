@@ -52,7 +52,13 @@ def get_llm():
     Returns Cloudflare Workers AI LLM if USE_CLOUDFLARE=true,
     otherwise returns OpenAI LLM.
     """
-    if use_cloudflare and cloudflare_account_id and cloudflare_api_token:
+    if (
+        use_cloudflare
+        and cloudflare_account_id
+        and cloudflare_account_id.strip()
+        and cloudflare_api_token
+        and cloudflare_api_token.strip()
+    ):
         logger.info(
             f"Using Cloudflare Workers AI LLM with model: {cloudflare_llm_model}"
         )
@@ -76,8 +82,9 @@ def get_stt():
     if (
         use_cloudflare
         and cloudflare_account_id
+        and cloudflare_account_id.strip()
         and cloudflare_gateway_id
-        and cloudflare_api_token
+        and cloudflare_gateway_id.strip()
     ):
         logger.info("Using Deepgram STT through Cloudflare AI Gateway")
         # Cloudflare AI Gateway can proxy Deepgram API requests
@@ -98,8 +105,9 @@ def get_tts():
     if (
         use_cloudflare
         and cloudflare_account_id
+        and cloudflare_account_id.strip()
         and cloudflare_gateway_id
-        and cloudflare_api_token
+        and cloudflare_gateway_id.strip()
     ):
         logger.info("Using Cartesia TTS through Cloudflare AI Gateway")
         # Cloudflare AI Gateway can proxy Cartesia API requests
