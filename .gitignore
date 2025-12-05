@@ -1,3 +1,6 @@
 .env.local
 venv/
 .DS_Store
+site/
+__pycache__/
+*.pyc
