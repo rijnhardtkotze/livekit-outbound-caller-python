@@ -36,6 +36,79 @@ logger.setLevel(logging.INFO)
 
 outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
 
+# Cloudflare configuration
+use_cloudflare = os.getenv("USE_CLOUDFLARE", "false").lower() == "true"
+cloudflare_account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+cloudflare_api_token = os.getenv("CLOUDFLARE_API_TOKEN")
+cloudflare_gateway_id = os.getenv("CLOUDFLARE_AI_GATEWAY_ID")
+cloudflare_llm_model = os.getenv(
+    "CLOUDFLARE_LLM_MODEL", "@cf/meta/llama-3.1-8b-instruct"
+)
+
+
+def get_llm():
+    """Get the LLM instance based on configuration.
+
+    Returns Cloudflare Workers AI LLM if USE_CLOUDFLARE=true,
+    otherwise returns OpenAI LLM.
+    """
+    if use_cloudflare and cloudflare_account_id and cloudflare_api_token:
+        logger.info(
+            f"Using Cloudflare Workers AI LLM with model: {cloudflare_llm_model}"
+        )
+        # Cloudflare Workers AI provides OpenAI-compatible endpoints
+        return openai.LLM(
+            model=cloudflare_llm_model,
+            base_url=f"https://api.cloudflare.com/client/v4/accounts/{cloudflare_account_id}/ai/v1",
+            api_key=cloudflare_api_token,
+        )
+    else:
+        logger.info("Using OpenAI LLM with model: gpt-4o")
+        return openai.LLM(model="gpt-4o")
+
+
+def get_stt():
+    """Get the STT instance based on configuration.
+
+    Returns Deepgram STT proxied through Cloudflare AI Gateway if configured,
+    otherwise returns standard Deepgram STT.
+    """
+    if (
+        use_cloudflare
+        and cloudflare_account_id
+        and cloudflare_gateway_id
+        and cloudflare_api_token
+    ):
+        logger.info("Using Deepgram STT through Cloudflare AI Gateway")
+        # Cloudflare AI Gateway can proxy Deepgram API requests
+        # The gateway URL format: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/deepgram/v1/listen
+        gateway_base_url = f"https://gateway.ai.cloudflare.com/v1/{cloudflare_account_id}/{cloudflare_gateway_id}/deepgram/v1/listen"
+        return deepgram.STT(base_url=gateway_base_url)
+    else:
+        logger.info("Using Deepgram STT directly")
+        return deepgram.STT()
+
+
+def get_tts():
+    """Get the TTS instance based on configuration.
+
+    Returns Cartesia TTS proxied through Cloudflare AI Gateway if configured,
+    otherwise returns standard Cartesia TTS.
+    """
+    if (
+        use_cloudflare
+        and cloudflare_account_id
+        and cloudflare_gateway_id
+        and cloudflare_api_token
+    ):
+        logger.info("Using Cartesia TTS through Cloudflare AI Gateway")
+        # Cloudflare AI Gateway can proxy Cartesia API requests
+        gateway_base_url = f"https://gateway.ai.cloudflare.com/v1/{cloudflare_account_id}/{cloudflare_gateway_id}/cartesia"
+        return cartesia.TTS(base_url=gateway_base_url)
+    else:
+        logger.info("Using Cartesia TTS directly")
+        return cartesia.TTS()
+
 
 class OutboundCaller(Agent):
     def __init__(
@@ -181,14 +254,15 @@ async def entrypoint(ctx: JobContext):
         dial_info=dial_info,
     )
 
-    # the following uses GPT-4o, Deepgram and Cartesia
+    # the following uses GPT-4o, Deepgram and Cartesia by default
+    # or Cloudflare Workers AI, Deepgram via AI Gateway, and Cartesia via AI Gateway
+    # when USE_CLOUDFLARE=true
     session = AgentSession(
         turn_detection=EnglishModel(),
         vad=silero.VAD.load(),
-        stt=deepgram.STT(),
-        # you can also use OpenAI's TTS with openai.TTS()
-        tts=cartesia.TTS(),
-        llm=openai.LLM(model="gpt-4o"),
+        stt=get_stt(),
+        tts=get_tts(),
+        llm=get_llm(),
         # you can also use a speech-to-speech model like OpenAI's Realtime API
         # llm=openai.realtime.RealtimeModel()
     )
