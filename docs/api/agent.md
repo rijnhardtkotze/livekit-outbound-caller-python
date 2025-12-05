@@ -17,7 +17,11 @@ class OutboundCaller(Agent):
             Set after the call is connected via set_participant().
         dial_info: Dictionary containing phone numbers and call metadata.
             Expected keys: 'phone_number', 'transfer_to' (optional).
-        instructions: The agent's system prompt for conversation behavior.
+
+    Note:
+        The 'instructions' attribute is inherited from the parent Agent class
+        and is set in the constructor based on the provided name and
+        appointment_time parameters.
 
     Example:
         >>> agent = OutboundCaller(
@@ -30,7 +34,6 @@ class OutboundCaller(Agent):
 
     participant: rtc.RemoteParticipant | None
     dial_info: dict[str, Any]
-    instructions: str
 
     def __init__(
         self,

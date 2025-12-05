@@ -151,6 +151,7 @@ Use Pydantic models for structured data validation and serialization:
 ```python
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+import re
 
 
 class DialInfo(BaseModel):
@@ -170,28 +171,33 @@ class DialInfo(BaseModel):
     transfer_to: Optional[str] = Field(
         default=None,
         description="Phone number for transfers in E.164 format",
+        pattern=r"^\+[1-9]\d{1,14}$",
     )
     caller_name: Optional[str] = Field(
         default=None,
         description="Name of the person being called",
     )
 
-    @field_validator("phone_number", "transfer_to")
+    @field_validator("transfer_to")
     @classmethod
-    def validate_phone_number(cls, v: Optional[str]) -> Optional[str]:
-        """Validate phone number format.
+    def validate_transfer_number(cls, v: Optional[str]) -> Optional[str]:
+        """Validate optional transfer phone number format.
 
         Args:
-            v: The phone number string to validate.
+            v: The phone number string to validate, or None.
 
         Returns:
-            The validated phone number or None.
+            The validated phone number or None if not provided.
 
         Raises:
-            ValueError: If the phone number format is invalid.
+            ValueError: If provided and the phone number format is invalid.
         """
-        if v is not None and not v.startswith("+"):
-            raise ValueError("Phone number must be in E.164 format")
+        if v is not None:
+            e164_pattern = r"^\+[1-9]\d{1,14}$"
+            if not re.match(e164_pattern, v):
+                raise ValueError(
+                    f"Phone number must be in E.164 format (e.g., +1234567890), got: {v}"
+                )
         return v
 
 
