@@ -67,26 +67,166 @@ Required environment variables (see `.env.example`):
 
 ## Code Conventions
 
+### Google Style Docstrings
+
+Always use Google style docstrings for all functions, methods, and classes:
+
+```python
+def process_data(data: dict[str, Any], validate: bool = True) -> str:
+    """Process and validate input data.
+
+    Transforms the input dictionary into a string representation,
+    optionally validating the data structure before processing.
+
+    Args:
+        data: The input dictionary containing data to process.
+            Must contain at least a 'phone_number' key.
+        validate: Whether to validate the data before processing.
+            Defaults to True.
+
+    Returns:
+        A string representation of the processed data.
+
+    Raises:
+        ValueError: If data is empty or missing required keys.
+        TypeError: If data is not a dictionary.
+
+    Example:
+        >>> result = process_data({"phone_number": "+1234567890"})
+        >>> print(result)
+        '+1234567890'
+    """
+    if validate and not data:
+        raise ValueError("Data cannot be empty")
+    return str(data)
+```
+
+### Type Hints
+
+Always use comprehensive type hints for function parameters, return types, and class attributes:
+
+```python
+from __future__ import annotations
+from typing import Any, Optional, Union
+from collections.abc import Callable, Awaitable
+
+def process_data(
+    data: dict[str, Any],
+    callback: Optional[Callable[[str], Awaitable[None]]] = None,
+) -> str:
+    """Process and validate input data.
+
+    Args:
+        data: The input dictionary containing data to process.
+        callback: Optional async callback function to invoke after processing.
+
+    Returns:
+        A string representation of the processed data.
+    """
+    return str(data)
+
+
+async def fetch_participant(
+    room_name: str,
+    identity: str,
+    timeout: float = 30.0,
+) -> Optional[rtc.RemoteParticipant]:
+    """Fetch a participant from a room by identity.
+
+    Args:
+        room_name: The name of the LiveKit room.
+        identity: The participant's unique identity.
+        timeout: Maximum time to wait for the participant in seconds.
+
+    Returns:
+        The remote participant if found, None otherwise.
+    """
+    pass
+```
+
+### Pydantic Strongly Typed Models
+
+Use Pydantic models for structured data validation and serialization:
+
+```python
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional
+
+
+class DialInfo(BaseModel):
+    """Information required to dial an outbound call.
+
+    Attributes:
+        phone_number: The phone number to dial in E.164 format.
+        transfer_to: Optional phone number for call transfers.
+        caller_name: Optional name of the person being called.
+    """
+
+    phone_number: str = Field(
+        ...,
+        description="Phone number in E.164 format (e.g., +1234567890)",
+        pattern=r"^\+[1-9]\d{1,14}$",
+    )
+    transfer_to: Optional[str] = Field(
+        default=None,
+        description="Phone number for transfers in E.164 format",
+    )
+    caller_name: Optional[str] = Field(
+        default=None,
+        description="Name of the person being called",
+    )
+
+    @field_validator("phone_number", "transfer_to")
+    @classmethod
+    def validate_phone_number(cls, v: Optional[str]) -> Optional[str]:
+        """Validate phone number format.
+
+        Args:
+            v: The phone number string to validate.
+
+        Returns:
+            The validated phone number or None.
+
+        Raises:
+            ValueError: If the phone number format is invalid.
+        """
+        if v is not None and not v.startswith("+"):
+            raise ValueError("Phone number must be in E.164 format")
+        return v
+
+
+class AppointmentSlot(BaseModel):
+    """Represents an available appointment time slot.
+
+    Attributes:
+        date: The date of the appointment (YYYY-MM-DD format).
+        time: The time of the appointment (HH:MM format).
+        duration_minutes: Duration of the appointment in minutes.
+        is_available: Whether the slot is currently available.
+    """
+
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    time: str = Field(..., description="Time in HH:MM format")
+    duration_minutes: int = Field(default=30, ge=15, le=120)
+    is_available: bool = Field(default=True)
+```
+
 ### Async/Await Patterns
 
 This project is async-first. All I/O operations must be async:
 
 ```python
-async def my_function():
+async def my_function(room_name: str) -> dict[str, Any]:
+    """Perform an async operation on a room.
+
+    Args:
+        room_name: The name of the LiveKit room.
+
+    Returns:
+        A dictionary containing the operation result.
+    """
     result = await some_async_operation()
     return result
-```
-
-### Type Hints
-
-Always use type hints for function parameters and return types:
-
-```python
-from __future__ import annotations
-from typing import Any
-
-def process_data(data: dict[str, Any]) -> str:
-    return str(data)
 ```
 
 ### Logging
@@ -101,23 +241,45 @@ logger.info(f"descriptive message with {context}")
 
 ### Function Tools
 
-When creating new agent tools, follow this pattern:
+When creating new agent tools, follow this pattern with comprehensive docstrings and type hints:
 
 ```python
 @function_tool()
 async def my_tool(
     self,
     ctx: RunContext,
-    param: str,
-):
-    """Clear description of what the tool does
-    
+    phone_number: str,
+    options: Optional[dict[str, Any]] = None,
+) -> dict[str, Union[str, bool]]:
+    """Perform an action on the given phone number.
+
+    This tool is called by the agent when it needs to perform
+    a specific action related to phone operations.
+
     Args:
-        param: Description of the parameter
+        ctx: The run context containing session and agent state.
+        phone_number: The target phone number in E.164 format.
+        options: Optional dictionary of additional options.
+            Supported keys:
+            - 'validate': bool - Whether to validate the number (default: True)
+            - 'timeout': int - Operation timeout in seconds (default: 30)
+
+    Returns:
+        A dictionary containing:
+        - 'success': bool - Whether the operation succeeded
+        - 'message': str - A human-readable result message
+        - 'data': Optional[dict] - Additional result data
+
+    Raises:
+        ValueError: If the phone number format is invalid.
+
+    Example:
+        >>> result = await my_tool(ctx, "+1234567890", {"validate": True})
+        >>> print(result["success"])
+        True
     """
     # Implementation
-    return result
-```
+    return {"success": True, "message": "Operation completed"}
 
 ## Key Classes and Functions
 
@@ -129,16 +291,81 @@ The main agent class that handles:
 - Call transfers
 - Voicemail detection
 
-Important methods:
-- `set_participant()`: Sets the remote participant reference
-- `hangup()`: Ends the call by deleting the room
-- `transfer_call()`: Transfers to a human operator
-- `end_call()`: Gracefully ends the call
-- `look_up_availability()`: Checks appointment availability
-- `confirm_appointment()`: Confirms an appointment
-- `detected_answering_machine()`: Handles voicemail detection
+```python
+class OutboundCaller(Agent):
+    """AI agent for making outbound calls via LiveKit SIP.
+
+    This agent handles dental practice appointment scheduling calls,
+    including voicemail detection, call transfers, and appointment
+    confirmation.
+
+    Attributes:
+        participant: Reference to the remote call participant.
+        dial_info: Dictionary containing phone numbers and call metadata.
+
+    Example:
+        >>> agent = OutboundCaller(
+        ...     name="Jayden",
+        ...     appointment_time="Tuesday at 3pm",
+        ...     dial_info={"phone_number": "+1234567890"},
+        ... )
+    """
+
+    participant: rtc.RemoteParticipant | None
+    dial_info: dict[str, Any]
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        appointment_time: str,
+        dial_info: dict[str, Any],
+    ) -> None:
+        """Initialize the OutboundCaller agent.
+
+        Args:
+            name: The customer's name for personalized greeting.
+            appointment_time: The scheduled appointment time string.
+            dial_info: Dictionary with 'phone_number' and optional 'transfer_to'.
+        """
+        ...
+```
+
+Important methods with type signatures:
+
+- `set_participant(participant: rtc.RemoteParticipant) -> None`: Sets the remote participant reference
+- `async hangup() -> None`: Ends the call by deleting the room
+- `async transfer_call(ctx: RunContext) -> str`: Transfers to a human operator
+- `async end_call(ctx: RunContext) -> None`: Gracefully ends the call
+- `async look_up_availability(ctx: RunContext, date: str) -> dict[str, list[str]]`: Checks appointment availability
+- `async confirm_appointment(ctx: RunContext, date: str, time: str) -> str`: Confirms an appointment
+- `async detected_answering_machine(ctx: RunContext) -> None`: Handles voicemail detection
 
 ### entrypoint (Function)
+
+```python
+async def entrypoint(ctx: JobContext) -> None:
+    """Main entry point for the outbound caller agent.
+
+    Orchestrates the complete outbound call flow from room connection
+    through call initiation and participant management.
+
+    Args:
+        ctx: The job context containing room and API access.
+
+    Raises:
+        api.TwirpError: If SIP participant creation fails.
+
+    Example:
+        >>> cli.run_app(
+        ...     WorkerOptions(
+        ...         entrypoint_fnc=entrypoint,
+        ...         agent_name="outbound-caller",
+        ...     )
+        ... )
+    """
+    ...
+```
 
 The main entry point that:
 1. Connects to the LiveKit room

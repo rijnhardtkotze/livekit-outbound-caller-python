@@ -6,13 +6,55 @@ This page documents the `OutboundCaller` agent class and its methods.
 
 ```python
 class OutboundCaller(Agent):
+    """AI agent for making outbound calls via LiveKit SIP.
+
+    This agent handles dental practice appointment scheduling calls,
+    including voicemail detection, call transfers, and appointment
+    confirmation.
+
+    Attributes:
+        participant: Reference to the remote call participant.
+            Set after the call is connected via set_participant().
+        dial_info: Dictionary containing phone numbers and call metadata.
+            Expected keys: 'phone_number', 'transfer_to' (optional).
+        instructions: The agent's system prompt for conversation behavior.
+
+    Example:
+        >>> agent = OutboundCaller(
+        ...     name="Jayden",
+        ...     appointment_time="Tuesday at 3pm",
+        ...     dial_info={"phone_number": "+1234567890", "transfer_to": "+0987654321"},
+        ... )
+        >>> agent.set_participant(participant)
+    """
+
+    participant: rtc.RemoteParticipant | None
+    dial_info: dict[str, Any]
+    instructions: str
+
     def __init__(
         self,
         *,
         name: str,
         appointment_time: str,
         dial_info: dict[str, Any],
-    ):
+    ) -> None:
+        """Initialize the OutboundCaller agent.
+
+        Args:
+            name: The customer's name for personalized greeting.
+            appointment_time: The scheduled appointment time string
+                (e.g., "next Tuesday at 3pm").
+            dial_info: Dictionary containing call configuration.
+                Required keys:
+                - 'phone_number': str - The number to dial in E.164 format.
+                Optional keys:
+                - 'transfer_to': str - Number for call transfers.
+
+        Raises:
+            KeyError: If 'phone_number' is missing from dial_info.
+        """
+        ...
 ```
 
 The `OutboundCaller` class extends the LiveKit `Agent` class and implements a dental practice scheduling assistant.
